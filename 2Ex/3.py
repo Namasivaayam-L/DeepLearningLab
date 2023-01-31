@@ -12,7 +12,7 @@ def preprocess_data(df):
     return df
 
 # Load the dataset using the custom functions
-file_path = "path/to/dataset.csv"
+file_path = "./tree_dataset.csv"
 df = read_data(file_path)
 df = preprocess_data(df)
 
