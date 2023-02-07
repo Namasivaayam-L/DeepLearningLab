@@ -7,6 +7,7 @@ import numpy as np
 
 # Load the dataset and perform exploratory data analysis
 from sklearn.datasets import load_digits
+from sklearn.model_selection import train_test_split
 digits = load_digits()
 
 # Plot some examples of the images
