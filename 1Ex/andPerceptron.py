@@ -1,41 +1,42 @@
+
+
+import torch
 import numpy as np
 
-# Define the activation function (step function)
-def activation_fn(x):
-    return 1 if x >= 0 else -1
+def perceptron(inputs, weights,bias):
+    weighted_sum = torch.dot(inputs, weights)+bias
+    prediction = torch.where(weighted_sum > 0, torch.tensor(1.0), torch.tensor(-1.0))
+    return prediction
 
-# Define the prediction function
-def predict(inputs, weights):
-    summation = np.dot(inputs, weights)
-    return activation_fn(summation)
-
-# Define the training function
-def train(inputs, targets, weights, learning_rate, epochs):
+def train_perceptron(inputs, targets, weights, learning_rate, epochs,bias):
+    error=0
     for epoch in range(epochs):
-        for i, target in enumerate(targets):
-            prediction = predict(inputs[i], weights)
-            error = target - prediction
-            weights += learning_rate * error * inputs[i]
-    return weights
+        for i, input_ in enumerate(inputs):
+            prediction = perceptron(input_, weights,bias)
+            error = targets[i] - prediction
+            weights += learning_rate * error * input_
+        bias+= learning_rate * error
+    return weights,bias
+def calculate_accuracy(inputs, targets, weights,bias):
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for i, input_ in enumerate(inputs):
+            prediction = perceptron(input_, weights,bias)
+            if prediction == targets[i]:
+                correct += 1
+            total += 1
+    return correct / total
 
-# Define the input and target data
-inputs = np.array([[1, 1], [1, -1], [-1, 1], [-1, -1]])
-targets = np.array([1, -1, -1, -1])
-
-# Initialize the weights with random values
-weights = np.random.rand(2)
-
-# Set the learning rate and number of epochs
+inputs = torch.tensor([[-1, -1], [-1, 1], [1, -1], [1, 1]],dtype=torch.float32)
+targets = torch.tensor([-1, -1, -1, 1],dtype=torch.float32)
+weights = torch.zeros(2)
+# print(weights)
+bias = torch.tensor([0.01],dtype=torch.float32)
 learning_rate = 0.1
-epochs = 10
+epochs = 20
 
-# Train the model
-weights = train(inputs, targets, weights, learning_rate, epochs)
-
-# Print the trained weights
-print("Trained weights:", weights)
-
-# Make predictions on the input data
-for i, target in enumerate(targets):
-    prediction = predict(inputs[i], weights)
-    print("Input:", inputs[i], "Target:", target, "Prediction:", prediction)
+trained_weights,bias = train_perceptron(inputs, targets, weights, learning_rate, epochs,bias)
+print("Trained Weights: ", trained_weights)
+accuracy = calculate_accuracy(inputs, targets, trained_weights,bias)
+print("Accuracy: ", accuracy*100)

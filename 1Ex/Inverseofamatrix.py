@@ -67,8 +67,8 @@ def invOfMat(t):
             inv_t[i][j] = adj_t[i][j] / det_t
     return inv_t
 
-t1=T.tensor([[2,14,6],
-             [8,10,12],
-             [14,16,18]])
+t1=T.tensor([[1,2,1],
+             [3,1,2],
+             [4,1,1]])
 
 print(invOfMat(t1),'inv')
