@@ -1,57 +1,76 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import pandas as pd
-from sklearn.preprocessing import StandardScaler
+import torch.optim as optim
 import numpy as np
-# Load the Iris dataset
-data = pd.read_csv("https://archive.ics.uci.edu/ml/machine-learning-databases/iris/iris.data")
+from sklearn.datasets import load_heartdisease
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
-# Split the data into input and target variables
-inputs = data.iloc[:, :-1].values
-targets = data.iloc[:, -1].values
-inputs = inputs
-# Standardize the input data
+# Load data
+X, y = load_heartdisease(return_X_y=True)
+
+# Split data into train and test sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Scale data
 scaler = StandardScaler()
-inputs = scaler.fit_transform(inputs)
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
 
-# Convert the inputs and targets to PyTorch tensors
-inputs = torch.tensor(inputs, dtype=torch.float64)
-targets = torch.tensor(targets, dtype=torch.float64)
-
-# Define the RBF network
+# Define RBF layer
 class RBF(nn.Module):
-    def __init__(self, num_inputs, num_hidden, num_outputs):
-        super(RBF, self).__init__()
-        self.hidden_weights = nn.Parameter(torch.randn(num_hidden, num_inputs))
-        self.hidden_biases = nn.Parameter(torch.randn(num_hidden))
-        self.output_weights = nn.Parameter(torch.randn(num_outputs, num_hidden))
-        self.output_biases = nn.Parameter(torch.randn(num_outputs))
+    def __init__(self, num_centers, in_features, out_features):
+        super().__init__()
+        self.centers = nn.Parameter(torch.randn(num_centers, in_features))
+        self.widths = nn.Parameter(torch.randn(num_centers))
+        self.linear = nn.Linear(num_centers, out_features)
+    
+    def radial(self, X):
+        dist = torch.sum((X[:, None, :] - self.centers[None, :, :]) ** 2, dim=2)
+        return torch.exp(-dist / (2 * self.widths ** 2))
+    
+    def forward(self, X):
+        radial_output = self.radial(X)
+        return self.linear(radial_output)
 
-    def forward(self, inputs):
-        hidden = torch.exp(-torch.sum((inputs[None, :] - self.hidden_weights[:, None, :])**2, dim=-1) / 2)
-        hidden = hidden / torch.sum(hidden, dim=0)
-        outputs = torch.addmm(self.output_biases, hidden, self.output_weights)
-        return outputs
+# Define RBF network
+class RBFNetwork(nn.Module):
+    def __init__(self, num_centers, in_features, out_features):
+        super().__init__()
+        self.rbf = RBF(num_centers, in_features, out_features)
+    
+    def forward(self, X):
+        return self.rbf(X)
 
-# Initialize the RBF network
-rbf = RBF(4, 8, 3)
+# Define training loop
+def train(model, X, y, optimizer, criterion, num_epochs):
+    for epoch in range(num_epochs):
+        optimizer.zero_grad()
+        outputs = model(X)
+        loss = criterion(outputs, y)
+        loss.backward()
+        optimizer.step()
+        if (epoch + 1) % 100 == 0:
+            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}")
 
-# Define the loss function and optimizer
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.SGD(rbf.parameters(), lr=0.01)
+# Define model hyperparameters
+num_centers = 10
+in_features = X_train.shape[1]
+out_features = 1
+learning_rate = 0.1
+num_epochs = 1000
 
-# Train the RBF network
-for epoch in range(100):
-    outputs = rbf(inputs)
-    loss = criterion(outputs, targets)
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
+# Initialize model, optimizer, and loss function
+model = RBFNetwork(num_centers, in_features, out_features)
+optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+criterion = nn.MSELoss()
 
-# Evaluate the RBF network on the input data
+# Train model
+train(model, torch.tensor(X_train).float(), torch.tensor(y_train).float(), optimizer, criterion, num_epochs)
+
+# Evaluate model on test set
 with torch.no_grad():
-    outputs = rbf(inputs)
-    _, predictions = torch.max(outputs, dim=1)
-    accuracy = torch.mean((predictions == targets).float())
-    print("Accuracy:", accuracy)
+    y_pred = model(torch.tensor(X_test).float())
+    y_pred_class = (y_pred > 0.5).float()
+    accuracy = torch.mean((y_pred_class == torch.tensor(y_test).float()).float())
+    print(f"Test Accuracy: {accuracy.item():.4f}")
