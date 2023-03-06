@@ -35,7 +35,6 @@ class KSOM(nn.Module):
 
         return winner
 
-
 # Create some random input data
 x_train = torch.randn(1000, 2)
 

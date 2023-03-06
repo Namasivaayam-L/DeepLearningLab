@@ -1,13 +1,13 @@
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from sklearn.datasets import load_heartdisease
+from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 
 # Load data
-X, y = load_heartdisease(return_X_y=True)
+X, y = load_iris(return_X_y=True)
 
 # Split data into train and test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -50,7 +50,7 @@ model = keras.Sequential([
 model.compile(optimizer='adam', loss='mse', metrics=['accuracy'])
 
 # Train model
-model.fit(X_train, y_train, epochs=1000, batch_size=32, verbose=2)
+model.fit(X_train, y_train, epochs=500, batch_size=32, verbose=2)
 
 # Evaluate model on test set
 test_loss, test_acc = model.evaluate(X_test, y_test, verbose=0)
