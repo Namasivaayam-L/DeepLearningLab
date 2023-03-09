@@ -18,7 +18,7 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 
 # Find centers using K-means clustering
-num_centers = 10
+num_centers = 3
 kmeans = KMeans(n_clusters=num_centers, random_state=42).fit(X_train)
 centers = kmeans.cluster_centers_
 
