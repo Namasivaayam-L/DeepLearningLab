@@ -46,4 +46,3 @@ for epoch in range(10):
         winner = ksom(x)
     ksom.learning_rate/=2
 print(ksom.weights)
-

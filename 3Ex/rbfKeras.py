@@ -30,7 +30,7 @@ class RBFLayer(keras.layers.Layer):
         self.centers = self.add_weight(name='centers', shape=(self.num_centers, X_train.shape[1]), initializer='uniform', trainable=True)
         self.widths = self.add_weight(name='widths', shape=(self.num_centers,), initializer='ones', trainable=True)
         self.linear = layers.Dense(units=1, activation=None)
-    
+
     def radial(self, X):
         X = tf.expand_dims(X, axis=1)
         centers = tf.expand_dims(self.centers, axis=0)
