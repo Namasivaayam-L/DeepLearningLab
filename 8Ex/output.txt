@@ -1,0 +1,411 @@
+1. CNN - AUDIO
+
+#Libraries we will need.
+import pandas as pd
+import matplotlib.pyplot as plt
+import librosa
+import librosa.display
+from tqdm import tqdm
+import numpy as np
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+import tensorflow.keras.models as models
+import tensorflow.keras.layers as layers
+import IPython.display as ipd
+from IPython.core.interactiveshell import InteractiveShell
+InteractiveShell.ast_node_interactivity = "all"
+
+%matplotlib inline
+%load_ext tensorboard
+
+sample = r"../Datasets/environmental-sound-classification-50/audio/audio/1-100032-A-0.wav" # single bark
+x,freq = librosa.load(sample)
+sr=freq
+
+print(x.shape)
+print(type(x))
+print(freq)
+print(type(freq))
+
+(110250,)
+<class 'numpy.ndarray'>
+22050
+<class 'int'>
+
+import IPython.display as ipd
+ipd.Audio(sample)
+
+import matplotlib.pyplot as plt
+import librosa.display
+plt.figure(figsize=(10,3))
+plt.title("Single Bark Wave Plot")
+plt.plot(x)
+
+X=librosa.stft(x) #stft -> Short-time Fourier transform
+X_db=librosa.amplitude_to_db(abs(X)) #Translation from amplitude to desibel(db) value
+plt.figure(figsize=(20,8))
+librosa.display.specshow(X_db, sr=sr,x_axis="time",y_axis="hz")
+plt.title("Multi Bark Sound Spectogram")
+plt.colorbar()
+
+mfcc=librosa.feature.mfcc(y=x,sr=sr)
+print("shape of mfcc:" ,mfcc.shape)
+
+plt.figure(figsize=(15,6))
+librosa.display.specshow(mfcc,x_axis="s")
+plt.title("Mel-Frequency Cepstral Coefficients")
+plt.colorbar()
+
+CSV_FILE_PATH = "../Datasets/environmental-sound-classification-50/esc50.csv"  # path of csv file
+DATA_PATH = "../Datasets/environmental-sound-classification-50/audio/audio/16000/" # path to folder containing audio files
+
+df = pd.read_csv(CSV_FILE_PATH)
+df=df.drop(['fold','esc10','src_file','take'], axis=1)
+classes = df['category'].unique()
+# print("Classes are: ",classes)
+print("# of Classes are: ",classes.shape[0])
+class_dict = {i:x for x,i in enumerate(classes)}
+df = df.drop_duplicates(subset=['filename'])
+df['target'] = df['category'].map(class_dict)
+df.head()
+print("df shape: ", df.shape)
+
+X = []
+y = []
+
+for data in tqdm(df.iterrows(),  desc='Progress'):
+    try:
+        sig , sr = librosa.load(DATA_PATH+data[1][0])
+        mfcc_ = librosa.feature.mfcc(y=sig , sr=sr, n_mfcc=40)
+        X.append(mfcc_)
+        y.append(data[1][1])
+    except:
+        pass
+
+X = np.array(X) 
+y = np.array(y)
+
+print("X Shape is: ", X.shape)
+print("y Shape is: ", y.shape)
+
+X Shape is:  (3894, 40, 216, 1)
+y Shape is:  (3894, 50)
+
+y = tf.keras.utils.to_categorical(y , num_classes=50)
+X = X.reshape(X.shape[0], X.shape[1], X.shape[2], 1)
+
+X_train , X_test , y_train , y_test = train_test_split(X , y ,test_size=0.2, random_state=42)
+
+INPUTSHAPE = (40,216,1)
+
+model =  models.Sequential([
+    
+                          layers.Conv2D(32 , (3,3),activation = 'relu',padding='valid', input_shape = INPUTSHAPE),  
+                          layers.MaxPooling2D(2, padding='same'),
+                          layers.Conv2D(128, (3,3), activation='relu',padding='valid'),
+                          layers.MaxPooling2D(2, padding='same'),
+                          layers.Dropout(0.3),
+                          layers.Conv2D(128, (3,3), activation='relu',padding='valid'),
+                          layers.MaxPooling2D(2, padding='same'),
+                          layers.Dropout(0.3),
+                          layers.GlobalAveragePooling2D(),
+                          layers.Dense(512 , activation = 'relu'),
+                          layers.Dense(50 , activation = 'softmax')
+])
+
+model.compile(loss = 'categorical_crossentropy', optimizer = 'adam', metrics = 'acc')
+model.summary()
+
+Model: "sequential"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ conv2d (Conv2D)             (None, 38, 214, 32)       320       
+                                                                 
+ max_pooling2d (MaxPooling2D  (None, 19, 107, 32)      0         
+ )                                                               
+                                                                 
+ conv2d_1 (Conv2D)           (None, 17, 105, 128)      36992     
+                                                                 
+ max_pooling2d_1 (MaxPooling  (None, 9, 53, 128)       0         
+ 2D)                                                             
+                                                                 
+ dropout (Dropout)           (None, 9, 53, 128)        0         
+                                                                 
+ conv2d_2 (Conv2D)           (None, 7, 51, 128)        147584    
+                                                                 
+ max_pooling2d_2 (MaxPooling  (None, 4, 26, 128)       0         
+ 2D)                                                             
+                                                                 
+ dropout_1 (Dropout)         (None, 4, 26, 128)        0         
+                                                                 
+ global_average_pooling2d (G  (None, 128)              0         
+ lobalAveragePooling2D)                                          
+                                                                 
+ dense (Dense)               (None, 512)               66048     
+                                                                 
+ dense_1 (Dense)             (None, 50)                25650     
+                                                                 
+=================================================================
+Total params: 276,594
+Trainable params: 276,594
+Non-trainable params: 0
+
+batch_size = 8
+callback = tf.keras.callbacks.EarlyStopping(
+    monitor='val_loss', min_delta=0, patience=8, verbose=0, mode='auto',
+    baseline=None, restore_best_weights=False)
+
+history = model.fit(X_train,y_train ,
+            validation_data=(X_test,y_test),
+            epochs=40,
+            callbacks = [callback],batch_size=batch_size)
+
+
+Epoch 29/40
+390/390 [==============================] - 6s 16ms/step - loss: 0.1437 - acc: 0.9592 - val_loss: 0.3782 - val_acc: 0.9166
+Epoch 30/40
+390/390 [==============================] - 6s 16ms/step - loss: 0.1347 - acc: 0.9640 - val_loss: 0.5128 - val_acc: 0.9204
+
+import matplotlib.pyplot as plt
+plt.plot(history.history['acc'])
+plt.plot(history.history['val_acc'])
+plt.title('model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='upper left')
+plt.show()
+
+
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['train', 'validation'], loc='upper left')
+plt.show()
+
+2. CNN - Video
+
+import tensorflow as tf
+import os
+import cv2
+import numpy as np
+import random
+
+# Set dataset path
+# Load list of class names
+with open("../Datasets/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/classInd.txt") as f:
+    class_names = [line.strip().split()[1] for line in f.readlines()]
+
+subset_paths={}
+base_path = '../Datasets/UCF101/UCF-101/'
+train_files = os.listdir('../Datasets/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/')
+# print(train_files)
+for file in train_files[:-1]:
+    if 'train' in file:
+        with open("../Datasets/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/"+file, "r") as f:
+            # print(file)
+            subset_paths['train'] = [base_path+line.strip().split()[0] for line in f.readlines()]
+            # print([line.split(' ') for line in f.readlines()])
+            # subset_paths['train_labels'] = [line.strip().split()[1] for line in f.readlines()] 
+    if 'testlist01' in file or 'testlist02' in file:
+        with open("../Datasets/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/"+file, "r") as f:
+            # print(file)
+            subset_paths['val'] = [base_path+line.strip() for line in f.readlines()]
+    if 'testlist03' in file:
+        with open("../Datasets/UCF101/UCF101TrainTestSplits-RecognitionTask/ucfTrainTestlist/"+file, "r") as f:
+            # print(file)
+            subset_paths['test'] = [base_path+line.strip() for line in f.readlines()]
+
+random.shuffle(subset_paths['train'])
+random.shuffle(subset_paths['test'])
+random.shuffle(subset_paths['val'])
+
+def format_frames(frame, output_size):
+  """
+    Pad and resize an image from a video.
+
+    Args:
+      frame: Image that needs to resized and padded. 
+      output_size: Pixel size of the output frame image.
+
+    Return:
+      Formatted frame with padding of specified output size.
+  """
+  frame = tf.image.convert_image_dtype(frame, tf.float32)
+  frame = tf.image.resize_with_pad(frame, *output_size)
+  return frame
+
+def frames_from_video_file(video_path, n_frames, output_size = (128,128), frame_step = 15):
+  """
+    Creates frames from each video file present for each category.
+
+    Args:
+      video_path: File path to the video.
+      n_frames: Number of frames to be created per video file.
+      output_size: Pixel size of the output frame image.
+
+    Return:
+      An NumPy array of frames in the shape of (n_frames, height, width, channels).
+  """
+  # Read each video frame by frame
+  result = []
+  src = cv2.VideoCapture(str(video_path))  
+
+  video_length = src.get(cv2.CAP_PROP_FRAME_COUNT)
+
+  need_length = 1 + (n_frames - 1) * frame_step
+
+  if need_length > video_length:
+    start = 0
+  else:
+    max_start = video_length - need_length
+    start = random.randint(0, max_start + 1)
+
+  src.set(cv2.CAP_PROP_POS_FRAMES, start)
+  # ret is a boolean indicating whether read was successful, frame is the image itself
+  ret, frame = src.read()
+  result.append(format_frames(frame, output_size))
+
+  for _ in range(n_frames - 1):
+    for _ in range(frame_step):
+      ret, frame = src.read()
+    if ret:
+      frame = format_frames(frame, output_size)
+      result.append(frame)
+    else:
+      result.append(np.zeros_like(result[0]))
+  src.release()
+  result = np.array(result)[..., [2, 1, 0]]
+
+  return result
+
+class FrameGenerator:
+  def __init__(self, path, n_frames, training = False,key='train'):
+    """ Returns a set of frames with their associated label. 
+
+      Args:
+        path: Video file paths.
+        n_frames: Number of frames. 
+        training: Boolean to determine if training dataset is being created.
+    """
+    self.path = path
+    self.n_frames = n_frames
+    self.training = training
+    self.class_names =  class_names
+    self.class_ids_for_name = dict((name, idx) for idx, name in enumerate(self.class_names))
+    self.key = key
+  def get_files_and_class_names(self):
+    return subset_paths[self.key], self.class_names
+
+  def __call__(self):
+    video_paths, classes = self.get_files_and_class_names()
+
+    pairs = list(zip(video_paths, classes))
+
+    if self.training:
+      random.shuffle(pairs)
+
+    for path, name in pairs:
+      video_frames = frames_from_video_file(path, self.n_frames) 
+      label = self.class_ids_for_name[name] # Encode labels
+      yield video_frames, label
+
+
+# Create the training set
+output_signature = (tf.TensorSpec(shape = (None, None, None, 3), dtype = tf.float32),
+                    tf.TensorSpec(shape = (), dtype = tf.int16))
+train_ds = tf.data.Dataset.from_generator(FrameGenerator(subset_paths['train'], 10, training=True,key='train'),
+                                          output_signature = output_signature)
+# Create the validation set
+val_ds = tf.data.Dataset.from_generator(FrameGenerator(subset_paths['val'], 10, key='val'),
+                                        output_signature = output_signature)
+
+test_ds = tf.data.Dataset.from_generator(FrameGenerator(subset_paths['test'], 10, key='test'),
+                                        output_signature = output_signature)
+AUTOTUNE = tf.data.AUTOTUNE
+
+train_ds = train_ds.cache().shuffle(1000).prefetch(buffer_size = AUTOTUNE)
+val_ds = val_ds.cache().shuffle(1000).prefetch(buffer_size = AUTOTUNE)
+test_ds = test_ds.cache().shuffle(1000).prefetch(buffer_size = AUTOTUNE)
+train_ds = train_ds.batch(2)
+val_ds = val_ds.batch(2)
+test_ds = test_ds.batch(2)
+
+train_frames, train_labels = next(iter(train_ds))
+print(f'Shape of training set of frames: {train_frames.shape}')
+print(f'Shape of training labels: {train_labels.shape}')
+
+val_frames, val_labels = next(iter(val_ds))
+print(f'Shape of validation set of frames: {val_frames.shape}')
+print(f'Shape of validation labels: {val_labels.shape}')
+
+test_frames, test_labels = next(iter(test_ds))
+print(f'Shape of test set of frames: {test_frames.shape}')
+print(f'Shape of test labels: {test_labels.shape}')
+
+Shape of training set of frames: (2, 10, 128, 128, 3)
+Shape of training labels: (2,)
+Shape of validation set of frames: (2, 10, 128, 128, 3)
+Shape of validation labels: (2,)
+Shape of test set of frames: (2, 10, 128, 128, 3)
+Shape of test labels: (2,)
+
+
+# Define the CNN model
+model = tf.keras.models.Sequential([
+    tf.keras.layers.Conv3D(64, (3, 3, 3), activation='relu', input_shape=(10, 128, 128, 3)),
+    tf.keras.layers.MaxPooling3D((2, 2, 2)),
+    tf.keras.layers.Conv3D(61, (3, 3, 3), activation='relu'),
+    tf.keras.layers.MaxPooling3D((2, 2, 2)),
+    tf.keras.layers.Flatten(),
+    tf.keras.layers.Dense(512, activation='relu'),
+    tf.keras.layers.Dropout(0.5),
+    tf.keras.layers.Dense(len(class_names), activation='softmax')
+])
+
+Model: "sequential_2"
+_________________________________________________________________
+ Layer (type)                Output Shape              Param #   
+=================================================================
+ conv3d_4 (Conv3D)           (None, 8, 126, 126, 64)   5248      
+                                                                 
+ max_pooling3d_4 (MaxPooling  (None, 4, 63, 63, 64)    0         
+ 3D)                                                             
+                                                                 
+ conv3d_5 (Conv3D)           (None, 2, 61, 61, 61)     105469    
+                                                                 
+ max_pooling3d_5 (MaxPooling  (None, 1, 30, 30, 61)    0         
+ 3D)                                                             
+                                                                 
+ flatten_2 (Flatten)         (None, 54900)             0         
+                                                                 
+ dense_4 (Dense)             (None, 512)               28109312  
+                                                                 
+ dropout_2 (Dropout)         (None, 512)               0         
+                                                                 
+ dense_5 (Dense)             (None, 101)               51813     
+                                                                 
+=================================================================
+Total params: 28,271,842
+Trainable params: 28,271,842
+Non-trainable params: 0
+_________________________________________________________________
+
+# Compile the model
+model.compile(optimizer=tf.keras.optimizers.Adam(),
+              loss=tf.keras.losses.SparseCategoricalCrossentropy(),
+              metrics=['accuracy'])
+
+# Train the model
+model.fit(train_ds, epochs=50,validation_data=val_ds)
+
+Epoch 49/50
+51/51 [==============================] - 3s 58ms/step - loss: 0.1010 - accuracy: 0.9703 - val_loss: 30.2597 - val_accuracy: 0.0099
+Epoch 50/50
+51/51 [==============================] - 3s 57ms/step - loss: 0.7840 - accuracy: 0.9109 - val_loss: 31.5316 - val_accuracy: 0.0198
+
+model.evaluate(test_ds)
+
+51/51 [==============================] - 1s 19ms/step - loss: 27.6904 - accuracy: 0.0099

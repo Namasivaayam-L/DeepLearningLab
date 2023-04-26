@@ -1,0 +1,184 @@
+1. RBM
+
+import numpy as np
+import pandas as pd
+
+import torch
+import torch.nn as nn                 
+import torch.nn.parallel              
+import torch.optim as optim           
+import torch.utils.data               
+from torch.autograd import Variable   
+
+movies = pd.read_csv('../Datasets/ml-1m/ml-1m/movies.dat', sep = '::', 
+                    header = None, engine = 'python', encoding = 'latin-1')
+movies.head()
+
+users = pd.read_csv('../Datasets/ml-1m/ml-1m/users.dat', sep = '::', 
+                    header = None, engine = 'python', encoding = 'latin-1')
+users.head()
+
+ratings = pd.read_csv('../Datasets/ml-1m/ml-1m/ratings.dat', sep = '::', 
+                    header = None, engine = 'python', encoding = 'latin-1')
+ratings.head()
+
+train_set = pd.read_csv('../Datasets/ml-100k/ml-100k/u1.base', delimiter = '\t') 
+train_set.head()
+
+train_set = np.array(train_set, dtype = 'int')
+train_set.dtype
+
+test_set = pd.read_csv('../Datasets/ml-100k/ml-100k/u1.test', delimiter = '\t') 
+test_set = np.array(test_set, dtype = 'int')
+test_set.dtype
+
+print('There are', train_set[:,0].max(), 'Users in Training Set')
+print('There are', train_set[:,1].max(), 'Movies in Training Set')
+print('There are', test_set[:,0].max(), 'Users in Testing Set')
+print('There are', test_set[:,1].max(), 'Movies in Testing Set')
+
+There are 943 Users in Training Set
+There are 1682 Movies in Training Set
+There are 462 Users in Testing Set
+There are 1591 Movies in Testing Set
+
+t_users = int(max(max(train_set[:,0]), max(test_set[:,0])))
+t_movies = int(max(max(train_set[:,1]), max(test_set[:,1])))
+
+print(f'The total number of Users are {t_users} 
+and total number of Movies are {t_movies}')
+
+The total number of Users are 943 and total number of Movies are 1682
+
+def convert(dataset):
+    new_data = []                               
+    for user_id in range(1, (t_users + 1)):       
+        movie_ids = dataset[:,1][dataset[:,0]==user_id]
+        rating_ids = dataset[:,2][dataset[:,0]==user_id]
+        ratings = np.zeros(t_movies)
+        ratings[movie_ids - 1] = rating_ids 
+        new_data.append(list(ratings))
+    
+    return new_data
+
+# applying the function above to training and test set
+train_set = convert(train_set)
+test_set = convert(test_set)
+
+train_set = torch.FloatTensor(train_set)
+test_set = torch.FloatTensor(test_set)
+
+# first we replace all the zeros in train set by -1
+# coz all the zeros are the non-existing ratings for a movie by a user
+# now the new ratings are going to be 0(liked) and 1(disliked),
+ hence the orignal zeros must now have the new value as -1
+# thus, -1 will mean there wasn't a rating for a particular 
+movie by a particular user
+
+train_set[train_set == 0] = -1            
+
+
+
+train_set[train_set == 1] = 0
+train_set[train_set == 2] = 0
+
+
+train_set[train_set >= 3] = 1
+
+
+
+
+test_set[test_set == 0] = -1
+test_set[test_set == 1] = 0
+test_set[test_set == 2] = 0
+test_set[test_set >= 3] = 1
+
+class RBM():
+    def __init__(self, nv, nh):
+        self.W = torch.randn(nh, nv)
+        self.a = torch.randn(1, nh)
+        self.b = torch.randn(1, nv)
+        
+    def sample_h(self, x):
+        wx = torch.mm(x, self.W.t())
+        activation = wx + self.a.expand_as(wx)
+        p_h_given_v = torch.sigmoid(activation)
+        return p_h_given_v, torch.bernoulli(p_h_given_v)
+    
+    def sample_v(self, y):
+        wy = torch.mm(y, self.W)
+        activation = wy + self.b.expand_as(wy)
+        p_v_given_h = torch.sigmoid(activation)
+        return p_v_given_h, torch.bernoulli(p_v_given_h)
+    
+    def train(self, v0, vk, ph0, phk):
+        self.W += (torch.mm(v0.t(), ph0) - torch.mm(vk.t(), phk)).t()
+        self.b += torch.sum((v0-vk), 0)
+        self.a += torch.sum((ph0-phk), 0)
+
+nv = len(train_set[0])      # no. of visible nodes
+nh = 100                    # the features to be detected by RBM,
+         hence can define any relevant number
+batch_size = 100
+rbm = RBM(nv, nh)
+
+nb_epoch = 10        
+# 10 because as we have a binary outcome and less data, 
+the model will converge quickly
+
+# creating a for loop to iterate through these epochs and 
+in each epoch all observations go in the network 
+# and then updating the weights after observations of each
+ batch that passed through the network
+# and then we get our final visible nodes with new ratings
+ for the movies that were not orignally rated
+for epoch in range(1, nb_epoch+1):
+    train_loss = 0                      
+    s = 0.                          
+    
+    for id_user in range(0, t_users - batch_size, batch_size):
+        vk = train_set[id_user:id_user+batch_size]
+        v0 = train_set[id_user:id_user+batch_size]
+        ph0,_ = rbm.sample_h(v0)
+        
+        for k in range(10):
+            _,hk = rbm.sample_h(vk)
+            _,vk = rbm.sample_v(hk)
+            vk[v0<0] = v0[v0<0] 
+    
+        phk,_ = rbm.sample_h(vk)
+        rbm.train(v0, vk, ph0, phk)
+        
+        train_loss += torch.mean(torch.abs(v0[v0 >= 0] - vk[v0 >= 0]))
+        s += 1.
+        
+    print('epoch: ' + str(epoch) + ' loss: ' + str(train_loss/s) )
+
+epoch: 1 loss: tensor(0.3675)
+epoch: 2 loss: tensor(0.2569)
+epoch: 3 loss: tensor(0.2509)
+epoch: 4 loss: tensor(0.2545)
+epoch: 5 loss: tensor(0.2462)
+epoch: 6 loss: tensor(0.2490)
+epoch: 7 loss: tensor(0.2482)
+epoch: 8 loss: tensor(0.2496)
+epoch: 9 loss: tensor(0.2486)
+epoch: 10 loss: tensor(0.2489)
+
+test_loss = 0                      
+s = 0.                          
+
+for id_user in range(t_users):           
+    v = train_set[id_user:id_user+1]      
+    vt = test_set[id_user:id_user+1]      
+    
+    if len(vt[vt>=0]) > 0:           
+        _,h = rbm.sample_h(v)
+        _,v = rbm.sample_v(h)
+        
+        test_loss += torch.mean(torch.abs(vt[vt >= 0] - v[vt >= 0]))
+        s += 1.
+
+print('test_loss: ' + str(test_loss/s) )
+
+test_loss: tensor(0.2467)

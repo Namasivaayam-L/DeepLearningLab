@@ -1,0 +1,451 @@
+1. ALex Net
+
+import tensorflow as tf
+from tensorflow import keras
+import os
+import numpy as np
+import gzip
+    
+# Define hyperparameters
+num_classes = 10
+batch_size = 64
+epochs = 10
+learning_rate = 0.001
+
+def load_data_fromlocalpath(input_path):
+  files = [
+      'train-labels-idx1-ubyte', 'train-images-idx3-ubyte',
+      't10k-labels-idx1-ubyte', 't10k-images-idx3-ubyte'
+  ]
+
+  paths = []
+  for fname in files:
+    paths.append(os.path.join(input_path, fname))  # The location of the dataset.
+
+
+  with gzip.open(paths[0], 'rb') as lbpath:
+    y_train = np.frombuffer(lbpath.read(), np.uint8, offset=8)
+
+  with gzip.open(paths[1], 'rb') as imgpath:
+    x_train = np.frombuffer(
+        imgpath.read(), np.uint8, offset=16).reshape(len(y_train), 28, 28)
+
+  with gzip.open(paths[2], 'rb') as lbpath:
+    y_test = np.frombuffer(lbpath.read(), np.uint8, offset=8)
+
+  with gzip.open(paths[3], 'rb') as imgpath:
+    x_test = np.frombuffer(
+        imgpath.read(), np.uint8, offset=16).reshape(len(y_test), 28, 28)
+
+  return (x_train, y_train), (x_test, y_test)
+
+# Load the FashionMNIST dataset
+(x_train, y_train), (x_test, y_test) = 
+keras.datasets.fashion_mnist.load_data()
+# (x_train,y_train),(x_test,y_test)=
+load_data_fromlocalpath('../Datasets/fashion-mnist/')
+# Normalize the pixel values of the images to be between 0 and 1
+x_train = x_train.astype('float32') / 255.0
+x_test = x_test.astype('float32') / 255.0
+# Reshape the images to be 28x28x1
+x_train = x_train.reshape((x_train.shape[0], 28, 28, 1))
+x_test = x_test.reshape((x_test.shape[0], 28, 28, 1))
+    
+# One-hot encode the labels
+y_train = keras.utils.to_categorical(y_train, num_classes)
+y_test = keras.utils.to_categorical(y_test, num_classes)
+
+# Define the AlexNet model
+model=keras.models.Sequential([
+    keras.layers.Conv2D(filters=128, kernel_size=(11,11), strides=(4,4),
+     activation='relu', input_shape=(28,28,1)),
+    keras.layers.BatchNormalization(),
+    keras.layers.MaxPool2D(pool_size=(2,2)),
+    keras.layers.Conv2D(filters=256, kernel_size=(5,5), strides=(1,1), 
+    activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.MaxPool2D(pool_size=(2,2)),
+    keras.layers.Conv2D(filters=256, kernel_size=(3,3), strides=(1,1), 
+    activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.Conv2D(filters=256, kernel_size=(1,1), strides=(1,1),
+     activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    keras.layers.Conv2D(filters=256, kernel_size=(1,1), strides=(1,1),
+     activation='relu', padding="same"),
+    keras.layers.BatchNormalization(),
+    # keras.layers.MaxPool2D(pool_size=(2,2)),
+    keras.layers.Flatten(),
+    keras.layers.Dense(1024,activation='relu'),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(1024,activation='relu'),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(10,activation='softmax')
+])
+
+# Compile the model
+model.compile(optimizer=keras.optimizers.Adam(learning_rate),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+
+# Fit the model to the training data and validate it on the test data
+model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size,
+ validation_data=(x_test, y_test))
+
+
+938/938 [==============================] - 25s 16ms/step - 
+loss: 0.6199 - accuracy: 0.7812 - val_loss: 0.6810 - val_accuracy: 0.7733
+Epoch 2/10
+
+938/938 [==============================] - 14s 15ms/step - 
+loss: 0.4728 - accuracy: 0.8313 - val_loss: 0.5160 - val_accuracy: 0.8095
+Epoch 3/10
+
+938/938 [==============================] - 14s 15ms/step - 
+loss: 0.4399 - accuracy: 0.8412 - val_loss: 0.4983 - val_accuracy: 0.8312
+Epoch 4/10
+
+938/938 [==============================] - 14s 15ms/step - 
+loss: 0.4245 - accuracy: 0.8490 - val_loss: 0.5023 - val_accuracy: 0.8360
+Epoch 5/10
+
+938/938 [==============================] - 14s 15ms/step - 
+loss: 0.4185 - accuracy: 0.8540 - val_loss: 0.4061 - val_accuracy: 0.8526
+Epoch 6/10
+
+938/938 [==============================] - 14s 15ms/step - 
+loss: 0.3950 - accuracy: 0.8594 - val_loss: 0.4672 - val_accuracy: 0.8358
+Epoch 7/10
+
+938/938 [==============================] - 15s 16ms/step - 
+loss: 0.3647 - accuracy: 0.8677 - val_loss: 0.4096 - val_accuracy: 0.8475
+Epoch 8/10
+
+938/938 [==============================] - 15s 16ms/step - 
+loss: 0.3467 - accuracy: 0.8743 - val_loss: 0.4518 - val_accuracy: 0.8283
+Epoch 9/10
+
+938/938 [==============================] - 15s 16ms/step - 
+loss: 0.3408 - accuracy: 0.8775 - val_loss: 0.3790 - val_accuracy: 0.8644
+Epoch 10/10
+
+938/938 [==============================] - 15s 16ms/step - 
+loss: 0.3219 - accuracy: 0.8827 - val_loss: 0.3641 - val_accuracy: 0.8712
+
+
+# Evaluate the model on the test data
+
+test_loss, test_acc = model.evaluate(x_test, y_test)
+
+
+
+# Print the test accuracy
+
+print('Test accuracy:', test_acc)
+
+
+
+313/313 [==============================] - 3s 8ms/step - lo
+ss: 0.3641 - accuracy: 0.8712
+Test accuracy: 0.8712000250816345
+
+2. CHest X-Ray
+import torch
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import warnings
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+
+from torchvision.datasets import ImageFolder
+from torchvision import transforms
+from torch.utils.data.sampler import SubsetRandomSampler
+ #samples randomly from given indices
+from torch.utils.data.dataloader import DataLoader 
+# loads the data from sampler
+
+warnings.filterwarnings('ignore')
+
+# Defining transform to resize 1024x1024 to 128x128
+# To change to Tensor
+train_transform=transforms.Compose([
+                              transforms.Resize([64,64]),
+                              transforms.ToTensor()
+])
+test_transform=transforms.Compose([
+                              transforms.Resize([64,64]),
+                              transforms.ToTensor()
+])
+
+test_path = "../Datasets/Covid19-dataset/test/"
+train_val_path="../Datasets/Covid19-dataset/train/"
+
+dataset=ImageFolder(train_val_path,transform=train_transform)
+test_dataset=ImageFolder(test_path,transform=test_transform)
+
+def split_train_val(tot_img,val_percentage=0.2,rnd=23):
+  # Here indices are randomly permuted 
+  number_of_val=int(tot_img*val_percentage)
+  np.random.seed(rnd)
+  indexs=np.random.permutation(tot_img)
+  return indexs[number_of_val:],indexs[:number_of_val]
+
+randomness=12
+val_per=0.5
+train_indices,validation_indices=split_train_val(len(dataset),
+val_per,randomness)
+print(validation_indices[:5])
+
+batch_size=16
+# Training Part
+train_sampler=SubsetRandomSampler(train_indices)
+train_ds=DataLoader(dataset,batch_size,sampler=train_sampler)
+
+# Validation Part
+val_sampler=SubsetRandomSampler(validation_indices)
+val_ds=DataLoader(dataset,batch_size,sampler=val_sampler)
+
+class ConvNet(nn.Module):
+  def __init__(self):
+    super(ConvNet,self).__init__()
+    self.conv1=nn.Conv2d(in_channels=3,out_channels=8,kernel_size=3)
+    self.conv2=nn.Conv2d(in_channels=8,out_channels=16,kernel_size=3)
+    self.conv3=nn.Conv2d(in_channels=16,out_channels=32,kernel_size=3)
+    self.conv4=nn.Conv2d(in_channels=32,out_channels=16,kernel_size=3)
+    self.conv5=nn.Conv2d(in_channels=16,out_channels=8,kernel_size=3)
+    # self.conv6=nn.Conv2d(in_channels=8,out_channels=3,kernel_size=3)
+    # self.fc1=nn.Linear(in_features=8*31*31,out_features=32)
+    self.fc1=nn.Linear(in_features=8*27*27,out_features=32)
+    self.out=nn.Linear(in_features=32,out_features=3)
+
+  def forward(self,l):
+    l=self.conv1(l)
+    l=self.conv2(l)
+    l=self.conv3(l)
+    l=self.conv4(l)
+    l=self.conv5(l)
+    # l=self.conv6(l)
+    l=F.relu(l)
+    l=F.max_pool2d(l,kernel_size=2)
+    # print(l.size())
+    # l=l.reshape( -1,8*31*31)
+    l=l.view( -1,8*27*27)
+    l=self.fc1(l)
+    l=self.out(l)
+    
+    return l
+
+model=ConvNet()
+model
+
+ConvNet(
+  (conv1): Conv2d(3, 8, kernel_size=(3, 3), stride=(1, 1))
+  (conv2): Conv2d(8, 16, kernel_size=(3, 3), stride=(1, 1))
+  (conv3): Conv2d(16, 32, kernel_size=(3, 3), stride=(1, 1))
+  (conv4): Conv2d(32, 16, kernel_size=(3, 3), stride=(1, 1))
+  (conv5): Conv2d(16, 8, kernel_size=(3, 3), stride=(1, 1))
+  (fc1): Linear(in_features=5832, out_features=32, bias=True)
+  (out): Linear(in_features=32, out_features=3, bias=True)
+)
+
+loss_type = nn.CrossEntropyLoss()
+optimizer = optim.Adam(model.parameters(), lr=0.05)
+
+
+loss_val=[]
+acc=[]
+for epoch in range(12):  
+# loop over the dataset multiple times
+    # print("Epoch count-->",epoch)
+    running_loss=0.0
+    right = 0
+    total = 0
+    for i, data in enumerate(train_ds):
+        inputs, labels = data
+        # inputs,labels=inputs.to(device),labels.to(device)
+        # zero the parameter gradients
+        optimizer.zero_grad()
+        # Passing input into the model
+        outputs = model(inputs)        
+        # Caculating loss with crossentropy
+        loss = loss_type(outputs, labels)
+        # calculates the gradient 
+        loss.backward()
+        # update the weights
+        optimizer.step()
+        
+        running_loss=running_loss+loss.item()
+        _, predicted = torch.max(outputs,dim=1)
+        total += labels.size(0)
+        # Caculating number of right prediction
+        right += (predicted == labels).sum()
+        # running_loss=running_loss+loss.item()* inputs.size(0)
+    print("Epoch:",epoch,"Running Loss:",running_loss," Accuracy:",
+    (100 * right / total).item())
+    loss_val.append(running_loss / len(train_ds))
+    acc.append((100 * right / total).item())
+plt.plot(loss_val,label="loss")
+plt.legend()
+
+Epoch: 0 Running Loss: 426629.84639918804  Accuracy: 42.06349182128906
+Epoch: 1 Running Loss: 64836.203753352165  Accuracy: 22.22222137451172
+Epoch: 2 Running Loss: 13.498910427093506  Accuracy: 30.952381134033203
+Epoch: 3 Running Loss: 11.237679600715637  Accuracy: 42.06349182128906
+Epoch: 4 Running Loss: 8.997650265693665  Accuracy: 37.30158615112305
+Epoch: 5 Running Loss: 9.272973477840424  Accuracy: 26.984127044677734
+Epoch: 6 Running Loss: 9.001324653625488  Accuracy: 42.06349182128906
+Epoch: 7 Running Loss: 8.697757482528687  Accuracy: 42.06349182128906
+Epoch: 8 Running Loss: 8.838252186775208  Accuracy: 30.158729553222656
+Epoch: 9 Running Loss: 8.755673468112946  Accuracy: 42.06349182128906
+Epoch: 10 Running Loss: 8.733115673065186  Accuracy: 42.06349182128906
+Epoch: 11 Running Loss: 8.651498436927795  Accuracy: 42.06349182128906
+
+right = 0
+total = 0
+
+with torch.no_grad():
+# Switching off the gradient part, so that backpropagation doesnt take place
+    for data in val_ds:
+        images, labels = data
+        #images,labels=images,labels
+        # inputs,labels=inputs.to(device),labels.to(device)
+        outputs = model(images)
+        
+        _, predicted = torch.max(outputs,dim=1)
+        total += labels.size(0)
+        # Caculating number of right prediction
+        right += (predicted == labels).sum()
+        
+print('Accuracy on the validation images: %d %%' % (100 * right / total))
+
+
+batch_size=32
+# Training Part
+test_ds=DataLoader(test_dataset,batch_size)
+
+right_test = 0
+total_test = 0
+with torch.no_grad():
+    for data in test_ds:
+        images, labels_test = data
+        # images,labels_test=images.to(device),labels_test.to(device)
+        #images,labels_test=images,labels_test
+        outputs_test = model(images)
+        _, predicted_test = torch.max(outputs_test, 1)
+        total_test += labels_test.size(0)
+        right_test += (predicted_test == labels_test).sum()
+
+print('Accuracy on the Test images: %d %%' % (
+    100 * right_test / total_test))
+
+Accuracy on the Test images: 39 %
+
+3. REsNet
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+import torchvision.transforms as transforms
+import torchvision.models as models
+
+# Define hyperparameters
+num_epochs = 5
+batch_size = 32
+learning_rate = 0.01
+
+
+# Define data preprocessing
+transform_train = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+transform_val = transforms.Compose([
+    transforms.Resize((256, 256)),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5,), (0.5,))
+])
+
+# Load the dataset
+train_dataset = torchvision.datasets.ImageFolder
+(root='../Datasets/vegetable dataset/Vegetable Images/test', transform=transform_train)
+train_loader = torch.utils.data.DataLoader
+(train_dataset, batch_size=batch_size, shuffle=True)
+
+val_dataset = torchvision.datasets.ImageFolder
+(root='../Datasets/vegetable dataset/Vegetable Images/train', transform=transform_val)
+val_loader = torch.utils.data.DataLoader
+(val_dataset, batch_size=batch_size, shuffle=False)
+
+# Load the pre-trained ResNet model
+resnet = models.resnet18(pretrained=True)
+# resnet = resnet.cuda()
+# Replace the final fully connected layer
+# num_ftrs = resnet.fc.in_features
+# resnet.fc = nn.Linear(num_ftrs, 3)
+
+
+# Define the loss function and optimizer
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(resnet.parameters(), lr=learning_rate)
+
+# Train the model
+for epoch in range(num_epochs):
+    train_loss = 0.0
+    train_total = 0
+    train_correct = 0
+    
+    for images, labels in train_loader:
+        # Move tensors to the GPU if available
+        # images = images.cuda()
+        # labels = labels.cuda()
+        
+        # Forward pass
+        outputs = resnet(images)
+        loss = criterion(outputs, labels)
+        
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        # Track the training loss and accuracy
+        train_loss += loss.item() * labels.size(0)
+        _, predicted = torch.max(outputs.data, 1)
+        train_total += labels.size(0)
+        train_correct += (predicted == labels).sum().item()
+    
+    # Calculate the validation accuracy
+    val_correct = 0
+    val_total = 0
+    val_loss = 0.0
+    with torch.no_grad():
+        for images, labels in val_loader:
+            # Move tensors to the GPU if available
+            outputs = resnet(images)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item() * labels.size(0)
+            _, predicted = torch.max(outputs.data, 1)
+            val_total += labels.size(0)
+            val_correct += (predicted == labels).sum().item()
+    print("Epoch: {}, trainLoss: {}, testLoss: {}, trainAcc:{},
+     valAcc:{}".format(epoch,train_loss,val_loss,train_correct/train_total,
+     val_correct/val_total))
+            
+            
+Epoch: 0, trainLoss: 8568.711894989014, testLoss: 17833.239942073822,
+ trainAcc:0.186, valAcc:0.09781330825299789
+Epoch: 1, trainLoss: 5735.271551132202, testLoss: 17771.333200454712,
+ trainAcc:0.35533333333333333, valAcc:0.04584998824359276
+Epoch: 2, trainLoss: 4773.373621940613, testLoss: 18532.27825832367, 
+trainAcc:0.468, valAcc:0.1225017634610863
+Epoch: 3, trainLoss: 4167.373985290527, testLoss: 18131.47779226303, 
+trainAcc:0.5296666666666666, valAcc:0.08887843874911827
+Epoch: 4, trainLoss: 3646.8545246124268, testLoss: 18451.229437351227, 
+trainAcc:0.575, valAcc:0.13778509287561722
+
